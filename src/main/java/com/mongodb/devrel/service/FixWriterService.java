@@ -18,12 +18,10 @@ public class FixWriterService {
   private final ObjectMapper objectMapper;
   private final FixMessageRepository repository;
 
-  // If this Fails - IT needs to DEAD.LETTER or whatever is needed as we arlready told Kafaka we
-  // have it
-
+  // If this Fails - IT needs to DEAD.LETTER or whatever is needed
   @Async
   public void sendBatch(List<String> fixMessages) {
-
+    LOG.info("Sending fix messages to MongoDB from thread {}", Thread.currentThread().getName());
     List<FixMessage> batch = new ArrayList<>();
     for (String message : fixMessages) {
       try {
