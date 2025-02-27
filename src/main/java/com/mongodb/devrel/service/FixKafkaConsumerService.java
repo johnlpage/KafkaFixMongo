@@ -25,13 +25,13 @@ a Kafka consumer can be used instead of a web service - it's the same code as th
 public class FixKafkaConsumerService {
   private static final org.slf4j.Logger LOG =
       LoggerFactory.getLogger(FixKafkaConsumerService.class);
+  final int REPORT_AT = 10000;
+  final int BATCH_SIZE = 2000;
   private final FixMessageRepository repository;
   private final ObjectMapper objectMapper;
   private final AtomicLong lastMessageTime = new AtomicLong(System.currentTimeMillis());
   List<FixMessage> toSave = new ArrayList<>();
   List<CompletableFuture<BulkWriteResult>> futures = new ArrayList<>();
-  final int REPORT_AT = 10000;
-  final int BATCH_SIZE = 2000;
   int processedCount = 0;
 
   @KafkaListener(topics = "fixdata", groupId = "my-group-id")
