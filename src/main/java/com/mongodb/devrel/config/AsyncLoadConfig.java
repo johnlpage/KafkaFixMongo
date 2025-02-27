@@ -13,12 +13,13 @@ public class AsyncLoadConfig {
   @Bean(name = "loadExecutor")
   public ThreadPoolTaskExecutor loadExecutor() {
     ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-    executor.setCorePoolSize(16);
-    executor.setMaxPoolSize(16);
+    executor.setCorePoolSize(8);
+    executor.setMaxPoolSize(8);
     executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
     executor.setQueueCapacity(0);
     executor.setThreadNamePrefix("AsyncLoadThread-");
     executor.initialize();
+    System.out.println("ASYNC POOL SET UP");
     return executor;
   }
 }

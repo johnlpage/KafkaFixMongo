@@ -1,18 +1,12 @@
 package com.mongodb.devrel.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mongodb.bulk.BulkWriteResult;
-import com.mongodb.devrel.model.FixMessage;
-import com.mongodb.devrel.repository.FixMessageRepository;
 import jakarta.annotation.PreDestroy;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -27,11 +21,10 @@ public class FixKafkaConsumerService {
       LoggerFactory.getLogger(FixKafkaConsumerService.class);
   final int REPORT_AT = 10000;
   final int BATCH_SIZE = 2000;
-  private final FixMessageRepository repository;
-  private final ObjectMapper objectMapper;
+
   private final AtomicLong lastMessageTime = new AtomicLong(System.currentTimeMillis());
+  private final FixWriterService fixWriterService;
   List<String> toSave = new ArrayList<>();
-  List<CompletableFuture<BulkWriteResult>> futures = new ArrayList<>();
   int processedCount = 0;
 
   @KafkaListener(topics = "fixdata", groupId = "my-group-id")
@@ -47,25 +40,9 @@ public class FixKafkaConsumerService {
       LOG.error(e.getMessage());
     }
     if (toSave.size() >= BATCH_SIZE) {
-      sendBatch();
+      fixWriterService.sendBatch(List.copyOf(toSave));
+      toSave.clear();
     }
-  }
-
-  @Async
-  public CompletableFuture<List<FixMessage>> sendBatch() {
-    List<String> copyOfToSave = List.copyOf(toSave);
-    toSave.clear();
-    List<FixMessage> batch = new ArrayList<>();
-    for (String message : copyOfToSave) {
-      try {
-        FixMessage fixMessage = objectMapper.readValue(message, FixMessage.class);
-        batch.add(fixMessage);
-      } catch (Exception e) {
-        LOG.error(e.getMessage());
-      }
-    }
-    List<FixMessage> rval = repository.insert(batch);
-    return CompletableFuture.completedFuture(rval);
   }
 
   @Scheduled(fixedRate = 50) // Run every 50
@@ -74,18 +51,23 @@ public class FixKafkaConsumerService {
     long lastReceived = lastMessageTime.get();
     long idleTime = now - lastReceived;
     if (idleTime > 50) { // No messages for 50ms
-      sendBatch();
+      fixWriterService.sendBatch(List.copyOf(toSave));
+      toSave.clear();
     }
   }
 
   @PreDestroy
   public void onShutdown() {
-    sendBatch();
+    fixWriterService.sendBatch(List.copyOf(toSave));
+    toSave.clear();
     System.out.println("Kafka Listener is shutting down.");
-    CompletableFuture<Void> allFutures =
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
-    // Wait for all futures to complete
-    allFutures.join();
+    // Should use a Completeable future here
+    try {
+      Thread.sleep(5000);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+
     LOG.info("Processed {} docs.", processedCount);
   }
 }
