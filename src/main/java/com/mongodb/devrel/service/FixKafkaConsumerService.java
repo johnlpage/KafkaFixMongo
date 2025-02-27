@@ -1,6 +1,5 @@
 package com.mongodb.devrel.service;
 
-import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.devrel.model.FixMessage;
@@ -28,11 +27,11 @@ public class FixKafkaConsumerService {
       LoggerFactory.getLogger(FixKafkaConsumerService.class);
   private final FixMessageRepository repository;
   private final ObjectMapper objectMapper;
-  private final JsonFactory jsonFactory;
   private final AtomicLong lastMessageTime = new AtomicLong(System.currentTimeMillis());
   List<FixMessage> toSave = new ArrayList<>();
   List<CompletableFuture<BulkWriteResult>> futures = new ArrayList<>();
   final int REPORT_AT = 10000;
+  final int BATCH_SIZE = 2000;
   int processedCount = 0;
 
   @KafkaListener(topics = "fixdata", groupId = "my-group-id")
@@ -47,9 +46,9 @@ public class FixKafkaConsumerService {
       FixMessage document = objectMapper.readValue(message, FixMessage.class);
       toSave.add(document);
     } catch (Exception e) {
-      // TODD - Handle Malformed JSON from KAFKA
+      LOG.error(e.getMessage());
     }
-    if (toSave.size() >= 100) {
+    if (toSave.size() >= BATCH_SIZE) {
       sendBatch();
     }
   }
@@ -58,15 +57,16 @@ public class FixKafkaConsumerService {
   public CompletableFuture<List<FixMessage>> sendBatch() {
     List<FixMessage> copyOfToSave = List.copyOf(toSave);
     toSave.clear();
-    return CompletableFuture.completedFuture(repository.insert(copyOfToSave));
+    List<FixMessage> rval = repository.insert(copyOfToSave);
+    return CompletableFuture.completedFuture(rval);
   }
 
-  @Scheduled(fixedRate = 1000) // Run every second
+  @Scheduled(fixedRate = 50) // Run every 50
   public void checkForIdle() {
     long now = System.currentTimeMillis();
     long lastReceived = lastMessageTime.get();
     long idleTime = now - lastReceived;
-    if (idleTime > 1000) { // No messages for 1 seconds
+    if (idleTime > 50) { // No messages for 50ms
       sendBatch();
     }
   }

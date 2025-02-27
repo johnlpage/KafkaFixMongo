@@ -6,13 +6,10 @@ import java.util.*;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.stereotype.Service;
 
 /**
@@ -44,11 +41,7 @@ public class MongoDbPreflightCheckService {
   private final ApplicationContext context;
   private final MongoTemplate mongoTemplate;
 
-  @Value("${mews.preflight.createRequiredIndexes:true}")
-  private boolean createRequiredIndexes;
 
-  @Value("${mews.preflight.createRequiredIndexes:true}")
-  private boolean createCollections;
 
   public MongoDbPreflightCheckService(ApplicationContext context, MongoTemplate mongoTemplate) {
     this.context = context;
@@ -70,14 +63,10 @@ public class MongoDbPreflightCheckService {
     for (Document requiredCollection : requiredCollections) {
       String collectionName = requiredCollection.getString("name");
       if (!existingCollections.contains(collectionName)) {
-        if (createCollections) {
+
           LOG.warn("Collection '{}' does not exist, creating it.", collectionName);
           database.createCollection(collectionName);
-        } else {
-          LOG.error("Collection '{}' does not exist, cancelling startup", collectionName);
-          int exitCode = SpringApplication.exit(context, () -> 0);
-          System.exit(exitCode);
-        }
+
       }
     }
     return requiredCollections;
@@ -105,17 +94,9 @@ public class MongoDbPreflightCheckService {
         if (existingIndexes.contains(index.toJson())) {
           continue;
         }
-        if (createRequiredIndexes) {
+
           LOG.warn("Index '{}' does not exist, creating required index", index.toJson());
           collection.createIndex(index);
-        } else {
-          LOG.error(
-              "Collection '{}' does not have index {}, cancelling startup",
-              collectionName,
-              index.toJson());
-          SpringApplication.exit(context, () -> 0);
-          return;
-        }
       }
     }
   }
@@ -125,10 +106,6 @@ public class MongoDbPreflightCheckService {
   public ApplicationRunner mongoPreflightCheck() {
     return args -> {
       LOG.info("PREFLIGHT CHECK");
-      if (createRequiredIndexes) {
-        LOG.warn(
-            "THIS IS CONFIGURED TO AUTOMATICALLY CREATE INDEXES - THIS IS NOT RECOMMENDED IN PRODUCTION");
-      }
 
       Document schemaAndIndexes = Document.parse(SCHEMA_AND_INDEXES);
       List<Document> requiredInfo = ensureCollectionsExist(schemaAndIndexes);
@@ -137,19 +114,4 @@ public class MongoDbPreflightCheckService {
     };
   }
 
-  /** Create an Atlas Search Index from a String definition */
-  void createSearchIndex(String collection, String name, Document definition) {
-    Document createSearchIndexCommand =
-        new Document("createSearchIndexes", collection)
-            .append(
-                "indexes",
-                Collections.singletonList(
-                    new Document("name", name)
-                        .append("type", "search")
-                        .append("definition", definition)));
-
-    // Run the command
-    MongoDatabase database = mongoTemplate.getDb();
-    database.runCommand(createSearchIndexCommand);
-  }
 }
