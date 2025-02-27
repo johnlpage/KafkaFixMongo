@@ -30,7 +30,7 @@ public class FixKafkaConsumerService {
   private final FixMessageRepository repository;
   private final ObjectMapper objectMapper;
   private final AtomicLong lastMessageTime = new AtomicLong(System.currentTimeMillis());
-  List<FixMessage> toSave = new ArrayList<>();
+  List<String> toSave = new ArrayList<>();
   List<CompletableFuture<BulkWriteResult>> futures = new ArrayList<>();
   int processedCount = 0;
 
@@ -41,10 +41,8 @@ public class FixKafkaConsumerService {
     if (processedCount % REPORT_AT == 0) {
       LOG.info("KAFKA Read: {}", processedCount);
     }
-
     try {
-      FixMessage document = objectMapper.readValue(message, FixMessage.class);
-      toSave.add(document);
+      toSave.add(message);
     } catch (Exception e) {
       LOG.error(e.getMessage());
     }
@@ -55,9 +53,18 @@ public class FixKafkaConsumerService {
 
   @Async
   public CompletableFuture<List<FixMessage>> sendBatch() {
-    List<FixMessage> copyOfToSave = List.copyOf(toSave);
+    List<String> copyOfToSave = List.copyOf(toSave);
     toSave.clear();
-    List<FixMessage> rval = repository.insert(copyOfToSave);
+    List<FixMessage> batch = new ArrayList<>();
+    for (String message : copyOfToSave) {
+      try {
+        FixMessage fixMessage = objectMapper.readValue(message, FixMessage.class);
+        batch.add(fixMessage);
+      } catch (Exception e) {
+        LOG.error(e.getMessage());
+      }
+    }
+    List<FixMessage> rval = repository.insert(batch);
     return CompletableFuture.completedFuture(rval);
   }
 

@@ -30,6 +30,13 @@ bin/kafka-server-start.sh config/server.properties
 
 Create a Topic:
 
+If you need to delete a topic
+
+```
+cd $KAFKADIR
+bin/kafka-topics.sh --delete --topic fixdata --bootstrap-server localhost:9092 
+```
+
 Open another terminal window to create a new topic:
 
 ```
