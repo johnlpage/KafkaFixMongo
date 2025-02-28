@@ -20,7 +20,7 @@ public class FixKafkaConsumerService {
   private static final org.slf4j.Logger LOG =
       LoggerFactory.getLogger(FixKafkaConsumerService.class);
   final int REPORT_AT = 10000;
-  final int BATCH_SIZE = 500;
+  final int BATCH_SIZE = 1000;
 
   private final AtomicLong lastMessageTime = new AtomicLong(System.currentTimeMillis());
   private final FixWriterService fixWriterService;
